@@ -1,0 +1,47 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Voice Receptionist Demo</title>
+<style>
+:root{--brand:#7c3aed;--bg:#f5f3ff;--ink:#1f1b2e}
+body{margin:0;font-family:-apple-system,Segoe UI,Roboto,"Noto Sans Telugu",Arial,sans-serif;background:var(--bg);color:var(--ink)}
+.wrap{max-width:720px;margin:0 auto;padding:24px 16px}
+h1{font-size:26px;margin:0 0 4px}.sub{color:#5b5470;margin:0 0 18px}
+.langs{display:flex;gap:8px;margin-bottom:14px;flex-wrap:wrap}
+.langs button{border:1px solid #c4b5fd;background:#fff;border-radius:999px;padding:8px 14px;font-size:15px;cursor:pointer}
+.langs button.on{background:var(--brand);color:#fff;border-color:var(--brand)}
+.log{background:#fff;border-radius:16px;min-height:300px;max-height:55vh;overflow:auto;padding:16px;box-shadow:0 6px 24px rgba(60,30,120,.08)}
+.m{max-width:85%;padding:10px 14px;border-radius:14px;margin:8px 0;font-size:17px;line-height:1.45}
+.bot{background:#ede9fe}.me{background:var(--brand);color:#fff;margin-left:auto}
+.bar{display:flex;align-items:center;gap:14px;margin-top:16px}
+#mic{width:72px;height:72px;border-radius:50%;border:0;background:var(--brand);color:#fff;font-size:30px;cursor:pointer;box-shadow:0 8px 20px rgba(124,58,237,.35)}
+#mic.live{background:#dc2626;animation:p 1s infinite}@keyframes p{50%{transform:scale(1.07)}}
+#status{color:#5b5470}.note{font-size:12px;color:#7a7390;margin-top:18px}
+</style></head><body><div class="wrap">
+<h1>📞 Lakshmi · AI Receptionist</h1>
+<p class="sub">Sri Sai Dental Clinic (fictional demo) · speaks Telugu, Hindi and English</p>
+<div class="langs"><button data-l="te-IN" class="on">తెలుగు</button><button data-l="hi-IN">हिन्दी</button><button data-l="en-IN">English</button></div>
+<div class="log" id="log"></div>
+<div class="bar"><button id="mic" aria-label="Hold to talk">🎤</button><span id="status">Tap the mic and speak</span></div>
+<p class="note">Demo for a fictional business. Speech recognition by Chrome; voices from the device. Runs on a free local AI model.</p>
+</div>
+<script>
+const TENANT="demo-clinic-te", log=document.getElementById("log"), mic=document.getElementById("mic"), st=document.getElementById("status");
+let lang="te-IN"; const sid="v"+Math.random().toString(36).slice(2)+Date.now().toString(36);
+function add(t,c){const d=document.createElement("div");d.className="m "+c;d.textContent=t;log.appendChild(d);log.scrollTop=log.scrollHeight;}
+function voiceFor(l){const v=speechSynthesis.getVoices();return v.find(x=>x.lang.replace("_","-")===l)||v.find(x=>x.lang.startsWith(l.slice(0,2)));}
+function detect(t){if(/[ఀ-౿]/.test(t))return"te-IN";if(/[ऀ-ॿ]/.test(t))return"hi-IN";return"en-IN";}
+function speak(t){const u=new SpeechSynthesisUtterance(t);const l=detect(t);u.lang=l;const v=voiceFor(l);if(v)u.voice=v;u.rate=0.95;speechSynthesis.cancel();speechSynthesis.speak(u);}
+document.querySelectorAll(".langs button").forEach(b=>b.onclick=()=>{document.querySelectorAll(".langs button").forEach(x=>x.classList.remove("on"));b.classList.add("on");lang=b.dataset.l;});
+fetch("/api/tenant/"+TENANT).then(r=>r.json()).then(t=>{add(t.greeting,"bot");});
+async function ask(text){add(text,"me");st.textContent="Thinking…";
+  try{const r=await fetch("/api/chat/"+TENANT,{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({session_id:sid,message:text})});
+    const j=await r.json();add(j.reply,"bot");speak(j.reply);st.textContent="Tap the mic and speak";}
+  catch(e){st.textContent="Error, try again";}}
+const SR=window.SpeechRecognition||window.webkitSpeechRecognition;
+mic.onclick=()=>{if(!SR){const t=prompt("Speech recognition not available. Type your question:");if(t)ask(t);return;}
+  const r=new SR();r.lang=lang;r.interimResults=false;r.maxAlternatives=1;mic.classList.add("live");st.textContent="Listening…";
+  r.onresult=e=>{mic.classList.remove("live");ask(e.results[0][0].transcript);};
+  r.onerror=()=>{mic.classList.remove("live");st.textContent="Didn't catch that, tap again";};
+  r.onend=()=>mic.classList.remove("live");r.start();};
+speechSynthesis.onvoiceschanged=()=>{};
+</script></body></html>

@@ -1,0 +1,12 @@
+[project]
+name = "automation-studio"
+version = "0.1.0"
+description = "Multi-tenant AI support agent + lead capture (SaaS seed)"
+requires-python = ">=3.12"
+dependencies = [
+    "anthropic",
+    "fastapi",
+    "uvicorn",
+    "pyyaml",
+    "httpx>=0.28.1",
+]
