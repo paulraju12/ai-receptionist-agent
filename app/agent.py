@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import re
 import sqlite3
 import time
 from pathlib import Path
@@ -126,14 +127,48 @@ def system_prompt(t: dict) -> str:
     )
 
 
+# ---------- price guardrail ----------
+
+PRICE_RE = re.compile(r"(?:\$|₹|\bRs\.?\s?|\bINR\s?)\s?(\d[\d,]*(?:\.\d+)?)|(\d[\d,]*(?:\.\d+)?)\s*(?:rupees|రూపాయ)", re.I)
+PRICE_FALLBACK = ("I don't have an exact price for that on hand, so I don't want to guess. "
+                  "I can have the team call you with a quote - may I take your name and phone number?")
+
+
+def _norm(num: str) -> str:
+    n = num.replace(",", "")
+    return n[:-3] if n.endswith(".00") else n
+
+
+def price_is_grounded(knowledge: str, reply: str, user_text: str) -> bool:
+    """Every price in the reply must appear in the business info, on a line whose service
+    name is mentioned in the conversation (stops the model from attaching a real price to
+    the wrong service). Non-Latin replies are checked for the number only."""
+    latin = sum(c.isascii() and c.isalpha() for c in reply) > len(reply) * 0.5
+    said = (reply + " " + user_text).lower()
+    for m in PRICE_RE.finditer(reply):
+        p = _norm(m.group(1) or m.group(2))
+        lines = [ln for ln in knowledge.splitlines() if re.search(rf"(?<![\d.]){re.escape(p)}(?![\d])", ln.replace(",", ""))]
+        if not lines:
+            return False
+        if latin:
+            labels = [w for ln in lines for w in re.findall(r"[a-z]{4,}", ln.split(":")[0].lower())]
+            if labels and not any(w in said for w in labels):
+                return False
+    return True
+
+
 # ---------- one chat turn ----------
 
 def chat_turn(tenant_id: str, session_id: str, user_text: str) -> dict:
     """Runs one customer message through the agent. Returns reply text and any captured lead."""
     tenant = load_tenant(tenant_id)
     if tenant.get("provider", "ollama") == "ollama":
-        return _chat_turn_ollama(tenant, tenant_id, session_id, user_text)
-    return _chat_turn_claude(tenant, tenant_id, session_id, user_text)
+        out = _chat_turn_ollama(tenant, tenant_id, session_id, user_text)
+    else:
+        out = _chat_turn_claude(tenant, tenant_id, session_id, user_text)
+    if not price_is_grounded(tenant.get("knowledge", ""), out["reply"], user_text):
+        out["reply"] = PRICE_FALLBACK
+    return out
 
 
 def _handle_lead(tenant_id: str, session_id: str, lead: dict) -> tuple[dict | None, str, bool]:

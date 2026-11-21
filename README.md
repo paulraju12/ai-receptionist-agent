@@ -32,6 +32,7 @@ agent.chat_turn (app/agent.py)
 ## Guardrails
 - Answer only from the business information block; otherwise say you'll get the team to call back.
 - Never round, estimate or change a price, day or time; keep "from" prices as "from".
+- **Code-level price check:** every price in a reply must exist in the business info, on the line for the service being discussed. Otherwise the reply is replaced with a call-back offer - so a small model cannot attach a real price to the wrong service.
 - Lead tool input is validated server-side before saving.
 - Admin lead export requires `ADMIN_KEY`.
 
