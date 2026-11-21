@@ -10,3 +10,8 @@ dependencies = [
     "pyyaml",
     "httpx>=0.28.1",
 ]
+
+[dependency-groups]
+dev = [
+    "pytest>=9.2.0",
+]
